@@ -6,7 +6,6 @@ FOCUS: Climate events only - NOT policy or water management regulations
 """
 
 import os
-from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -126,6 +125,184 @@ class NewsAgent:
             print(f"❌ Configuration error: {str(e)}")
             return False
     
+    def get_article_urls(self, headline_summary):
+        """Extract full article URLs from headlines and summaries for deep reading"""
+        try:
+            url_extraction_prompt = f"""
+            From this climate news summary, identify the full article URLs that should be read in detail:
+            
+            Summary: {headline_summary}
+            
+            Return ONLY the URLs (one per line) for articles that:
+            1. Score 8+ relevance to Imperial Irrigation District operations
+            2. Contain detailed climate event information (not just headlines)
+            3. Are from reliable news sources
+            
+            Format: Return URLs only, one per line.
+            """
+            
+            response = self.client.responses.create(
+                model=self.model,
+                tools=[self.web_search_tool],
+                input=url_extraction_prompt
+            )
+            
+            # Parse URLs from response
+            urls = []
+            for line in response.output_text.strip().split('\n'):
+                line = line.strip()
+                if line.startswith('http'):
+                    urls.append(line)
+            
+            return urls[:3]  # Limit to top 3 most relevant articles
+            
+        except Exception as e:
+            print(f"⚠️ URL extraction failed: {str(e)}")
+            return []
+    
+    def read_full_article(self, url):
+        """Read and analyze full article content for detailed climate event intelligence"""
+        try:
+            article_analysis_prompt = f"""
+            Read this full article and extract detailed Imperial Irrigation District operational intelligence:
+            
+            URL: {url}
+            
+            Focus on extracting:
+            1. Specific climate event details (temperatures, precipitation, duration)
+            2. Geographic impact areas (Imperial Valley, Colorado River, Southern CA)
+            3. Operational implications for water/agriculture/energy systems
+            4. Timeline of events and forecasted impacts
+            5. Any mention of water supply, irrigation, or agricultural effects
+            
+            Provide a detailed summary focusing on actionable operational information.
+            Exclude policy discussions - focus only on the climate event itself.
+            """
+            
+            response = self.client.responses.create(
+                model=self.model,
+                tools=[self.web_search_tool],
+                input=article_analysis_prompt
+            )
+            
+            return response.output_text
+            
+        except Exception as e:
+            print(f"⚠️ Article reading failed for {url}: {str(e)}")
+            return f"Unable to read full article: {url}"
+    
+    def extract_operational_insights(self, article_content):
+        """Extract specific operational insights for Imperial Irrigation District from article content"""
+        try:
+            insights_prompt = f"""
+            From this climate event article, extract SPECIFIC operational insights for Imperial Irrigation District:
+            
+            Article Content: {article_content}
+            
+            Extract and format as structured intelligence:
+            
+            ## IMMEDIATE OPERATIONAL IMPACTS:
+            - [List specific impacts on water delivery, agriculture, energy]
+            
+            ## GEOGRAPHIC SCOPE:
+            - [Specific areas affected: Imperial Valley, Colorado River, etc.]
+            
+            ## TIMELINE:
+            - [When events started, duration, forecasted end]
+            
+            ## QUANTITATIVE DATA:
+            - [Temperatures, precipitation amounts, water levels, etc.]
+            
+            ## RECOMMENDED ACTIONS:
+            - [Specific operational adjustments based on climate event]
+            
+            Focus only on actionable intelligence that helps Imperial Irrigation District operations.
+            """
+            
+            response = self.client.responses.create(
+                model=self.model,
+                input=insights_prompt
+            )
+            
+            return response.output_text
+            
+        except Exception as e:
+            print(f"⚠️ Insights extraction failed: {str(e)}")
+            return "Unable to extract operational insights"
+    
+    def deep_analysis_search(self, query=None, relevance_threshold=8):
+        """Perform deep article analysis for high-relevance climate events"""
+        print(f"🔬 Starting deep analysis search for Imperial Irrigation District...")
+        print(f"📊 Deep analysis threshold: {relevance_threshold}+ (high-relevance only)")
+        
+        # Step 1: Get initial headlines
+        headlines = self.search_climate_news(query, relevance_threshold)
+        print(f"\n📰 Initial Headlines Retrieved")
+        
+        # Step 2: Extract URLs for deep reading
+        print(f"🔗 Extracting article URLs for deep analysis...")
+        urls = self.get_article_urls(headlines)
+        print(f"✓ Found {len(urls)} articles for deep reading")
+        
+        if not urls:
+            return f"Headlines Summary:\n{headlines}\n\nNo articles identified for deep analysis."
+        
+        # Step 3: Read and analyze full articles
+        deep_insights = []
+        for i, url in enumerate(urls, 1):
+            print(f"📖 Reading article {i}/{len(urls)}: {url[:50]}...")
+            article_content = self.read_full_article(url)
+            operational_insights = self.extract_operational_insights(article_content)
+            deep_insights.append({
+                'url': url,
+                'content': article_content,
+                'insights': operational_insights
+            })
+        
+        # Step 4: Summarize actionable intelligence
+        summary = self.summarize_actionable_intelligence(headlines, deep_insights)
+        return summary
+    
+    def summarize_actionable_intelligence(self, headlines, deep_insights):
+        """Summarize actionable intelligence comparing surface headlines vs deep analysis"""
+        try:
+            summary_prompt = f"""
+            Create an Imperial Irrigation District climate intelligence briefing comparing surface headlines with deep article analysis:
+            
+            SURFACE HEADLINES:
+            {headlines}
+            
+            DEEP ARTICLE ANALYSIS:
+            {[insight['insights'] for insight in deep_insights]}
+            
+            Create a briefing with:
+            
+            ## EXECUTIVE SUMMARY
+            [Key climate events affecting Imperial Irrigation District operations]
+            
+            ## DEEP ANALYSIS
+            [What headlines missed that deep reading revealed]
+            
+            ## CRITICAL OPERATIONAL INTELLIGENCE
+            [Specific actionable information for Imperial Irrigation District operations]
+            
+            ## IMMEDIATE ACTION ITEMS
+            [Specific operational adjustments recommended]
+            
+            Focus on actionable intelligence that goes beyond surface-level headlines.
+            """
+            
+            response = self.client.responses.create(
+                model=self.model,
+                input=summary_prompt
+            )
+            
+            return response.output_text
+            
+        except Exception as e:
+            print(f"⚠️ Intelligence summary failed: {str(e)}")
+            return f"Headlines: {headlines}\n\nDeep Analysis: Available but summary failed"
+    
     def search_climate_news(self, query=None, relevance_threshold=6):
         """Search for climate events with Imperial Irrigation District operational relevance filtering"""
         if query is None:
@@ -153,8 +330,8 @@ class NewsAgent:
 
 def main():
     """Main function for testing the news agent"""
-    print("🌊 Climate News Agent - Colorado Basin States")
-    print("=" * 50)
+    print("🌊 Climate Events Agent - Imperial Irrigation District")
+    print("=" * 60)
     
     try:
         print("\n🔧 Testing Configuration...")
@@ -162,9 +339,13 @@ def main():
         config_ok = agent.test_configuration()
         
         if config_ok:
-            print(f"\n🔍 Testing Search Functionality...")
-            result = agent.search_climate_news()
-            print(f"\n📰 Results:\n{result}")
+            print(f"\n🔍 Testing Basic Search Functionality...")
+            basic_result = agent.search_climate_news()
+            print(f"\n📰 Basic Results:\n{basic_result[:500]}...")
+            
+            print(f"\n🔬 Testing Deep Analysis Functionality...")
+            deep_result = agent.deep_analysis_search()
+            print(f"\n📊 Deep Analysis Results:\n{deep_result}")
         else:
             print("❌ Configuration test failed - skipping search test")
         
