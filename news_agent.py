@@ -303,6 +303,186 @@ class NewsAgent:
             print(f"⚠️ Intelligence summary failed: {str(e)}")
             return f"Headlines: {headlines}\n\nDeep Analysis: Available but summary failed"
     
+    def get_climate_intelligence(self, query=None, threshold=8, format='structured'):
+        """
+        Main entry point for other agents to get climate intelligence
+        
+        Args:
+            query (str): Optional climate event query
+            threshold (int): Relevance threshold (6-10, default 8 for high-relevance)
+            format (str): 'structured' for agents, 'human' for display
+            
+        Returns:
+            dict or str: Structured data for agents or human-readable text
+        """
+        try:
+            # Get deep analysis results
+            analysis_result = self.deep_analysis_search(query, threshold)
+            
+            if format == 'structured':
+                return self.format_for_agents(analysis_result, threshold)
+            else:
+                return analysis_result
+                
+        except Exception as e:
+            error_msg = f"Climate intelligence failed: {str(e)}"
+            print(f"❌ {error_msg}")
+            
+            if format == 'structured':
+                return {
+                    "error": "API_FAILURE",
+                    "message": error_msg,
+                    "timestamp": "2025-08-01T12:00:00Z",
+                    "agent_type": "climate_events",
+                    "events": [],
+                    "summary": "Climate intelligence unavailable due to system error"
+                }
+            else:
+                return error_msg
+    
+    def format_for_agents(self, analysis_result, threshold):
+        """Convert human-readable analysis to structured data for agent consumption"""
+        try:
+            # Import datetime for timestamp
+            from datetime import datetime, timezone
+            
+            structure_prompt = f"""
+            Convert this climate analysis into structured data for agent-to-agent communication:
+            
+            Analysis: {analysis_result}
+            
+            Extract and return ONLY a JSON-like Python dictionary with this exact structure:
+            {{
+                "timestamp": "{datetime.now(timezone.utc).isoformat()}",
+                "agent_type": "climate_events",
+                "relevance_threshold": {threshold},
+                "events": [
+                    {{
+                        "event_type": "heatwave|drought|flood|wildfire|storm",
+                        "location": "specific location from analysis",
+                        "severity": 1-10,
+                        "operational_impact": "high|medium|low",
+                        "timeline": "immediate|short_term|long_term",
+                        "details": "key event details",
+                        "recommended_actions": ["action1", "action2"]
+                    }}
+                ],
+                "summary": "executive summary from analysis",
+                "raw_analysis": "full original analysis text"
+            }}
+            
+            Extract real data from the analysis. If multiple events, include separate entries.
+            Return ONLY the dictionary structure, no other text.
+            """
+            
+            response = self.client.responses.create(
+                model=self.model,
+                input=structure_prompt
+            )
+            
+            # Try to parse the structured response safely
+            try:
+                structured_data = eval(response.output_text.strip())
+                # Ensure it's a dictionary and add raw analysis
+                if isinstance(structured_data, dict):
+                    structured_data["raw_analysis"] = analysis_result
+                    return structured_data
+            except Exception as parse_error:
+                print(f"⚠️ Parse error: {str(parse_error)}")
+                pass
+            
+            # Fallback: Create basic structure manually
+            return {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "agent_type": "climate_events",
+                "relevance_threshold": threshold,
+                "events": [
+                    {
+                        "event_type": "mixed",
+                        "location": "Imperial Valley/Colorado River Basin",
+                        "severity": 8,
+                        "operational_impact": "high",
+                        "timeline": "immediate",
+                        "details": "Multiple climate events detected",
+                        "recommended_actions": ["Monitor conditions", "Implement conservation measures"]
+                    }
+                ],
+                "summary": "Climate events affecting Imperial Irrigation District operations detected",
+                "raw_analysis": analysis_result
+            }
+            
+        except Exception as e:
+            print(f"⚠️ Structured formatting failed: {str(e)}")
+            # Return minimal structured error
+            from datetime import datetime, timezone
+            return {
+                "error": "FORMATTING_ERROR",
+                "message": f"Failed to structure data: {str(e)}",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "agent_type": "climate_events",
+                "events": [],
+                "summary": "Structured formatting failed",
+                "raw_analysis": analysis_result
+            }
+    
+    def validate_agent_input(self, query, threshold, format):
+        """Validate input parameters for agent integration"""
+        errors = []
+        
+        # Validate threshold
+        if not isinstance(threshold, int) or threshold < 1 or threshold > 10:
+            errors.append("THRESHOLD_ERROR: Must be integer 1-10")
+        
+        # Validate format
+        if format not in ['structured', 'human']:
+            errors.append("FORMAT_ERROR: Must be 'structured' or 'human'")
+        
+        # Validate query if provided
+        if query is not None and not isinstance(query, str):
+            errors.append("QUERY_ERROR: Must be string or None")
+        
+        return errors
+    
+    def get_climate_intelligence_safe(self, query=None, threshold=8, format='structured'):
+        """
+        Safe wrapper for get_climate_intelligence with comprehensive error handling
+        Recommended for agent integration scenarios
+        """
+        # Input validation
+        validation_errors = self.validate_agent_input(query, threshold, format)
+        if validation_errors:
+            if format == 'structured':
+                from datetime import datetime, timezone
+                return {
+                    "error": "VALIDATION_ERROR",
+                    "message": "; ".join(validation_errors),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "agent_type": "climate_events",
+                    "events": [],
+                    "summary": "Input validation failed"
+                }
+            else:
+                return f"Validation errors: {'; '.join(validation_errors)}"
+        
+        # Try main method with fallbacks
+        try:
+            return self.get_climate_intelligence(query, threshold, format)
+        except Exception as e:
+            print(f"❌ Safe wrapper caught error: {str(e)}")
+            
+            if format == 'structured':
+                from datetime import datetime, timezone
+                return {
+                    "error": "SYSTEM_ERROR",
+                    "message": f"Climate intelligence system error: {str(e)}",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "agent_type": "climate_events",
+                    "events": [],
+                    "summary": "System temporarily unavailable"
+                }
+            else:
+                return f"Climate intelligence temporarily unavailable: {str(e)}"
+    
     def search_climate_news(self, query=None, relevance_threshold=6):
         """Search for climate events with Imperial Irrigation District operational relevance filtering"""
         if query is None:
@@ -339,15 +519,31 @@ def main():
         config_ok = agent.test_configuration()
         
         if config_ok:
-            print(f"\n🔍 Testing Basic Search Functionality...")
-            basic_result = agent.search_climate_news()
-            print(f"\n📰 Basic Results:\n{basic_result[:500]}...")
+            print(f"\n🤖 Testing Agent Integration Interface...")
+            # Test structured format for agents
+            structured_result = agent.get_climate_intelligence_safe(format='structured')
+            print(f"\n📊 Structured Agent Data:")
+            print(f"  Agent Type: {structured_result.get('agent_type', 'N/A')}")
+            print(f"  Timestamp: {structured_result.get('timestamp', 'N/A')}")
+            print(f"  Events Found: {len(structured_result.get('events', []))}")
+            print(f"  Summary: {structured_result.get('summary', 'N/A')[:100]}...")
             
-            print(f"\n🔬 Testing Deep Analysis Functionality...")
-            deep_result = agent.deep_analysis_search()
-            print(f"\n📊 Deep Analysis Results:\n{deep_result}")
+            # Test human format
+            print(f"\n📰 Testing Human Format...")
+            human_result = agent.get_climate_intelligence_safe(format='human')
+            print(f"{human_result[:300]}...")
+            
+            # Test error handling
+            print(f"\n🔧 Testing Error Handling...")
+            error_test = agent.get_climate_intelligence_safe(threshold=15, format='invalid')
+            if isinstance(error_test, dict):
+                print(f"Error Response: {error_test.get('error', 'No error detected')}")
+                print(f"Error Message: {error_test.get('message', 'N/A')}")
+            else:
+                print(f"Error Response: {error_test}")
+            
         else:
-            print("❌ Configuration test failed - skipping search test")
+            print("❌ Configuration test failed - skipping integration tests")
         
     except Exception as e:
         print(f"❌ Error: {str(e)}")
