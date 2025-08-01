@@ -13,10 +13,22 @@ import requests
 from datetime import datetime, timedelta
 import time
 import json
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class WaterArbitrageSystem:
-    def __init__(self, sheet_url, openai_key):
+    def __init__(self, sheet_url=None, openai_key=None):
         """Initialize the system with Google Sheets and OpenAI"""
+        # Get credentials from environment variables
+        sheet_url = sheet_url or os.getenv('GOOGLE_SHEET_URL')
+        openai_key = openai_key or os.getenv('OPENAI_API_KEY')
+        
+        if not sheet_url:
+            raise ValueError("GOOGLE_SHEET_URL must be provided or set in environment")
+        if not openai_key:
+            raise ValueError("OPENAI_API_KEY must be provided or set in environment")
         # Setup Google Sheets
         scope = ['https://spreadsheets.google.com/feeds',
                 'https://www.googleapis.com/auth/drive']
@@ -360,16 +372,11 @@ def run_demo():
     print("🚀 Starting Water Arbitrage System Demo...")
     print("⚠️  Make sure you have:")
     print("   - Google Sheets API credentials.json file")
-    print("   - OpenAI API key")
-    print("   - Created a Google Sheet and copied its URL")
-    
-    # Configuration (replace with your actual values)
-    SHEET_URL = "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID_HERE"
-    OPENAI_KEY = ""
+    print("   - .env file with OPENAI_API_KEY and GOOGLE_SHEET_URL")
     
     try:
-        # Initialize system
-        system = WaterArbitrageSystem(SHEET_URL, OPENAI_KEY)
+        # Initialize system with environment variables
+        system = WaterArbitrageSystem()
         
         # Run full cycle
         results = system.run_full_cycle()
