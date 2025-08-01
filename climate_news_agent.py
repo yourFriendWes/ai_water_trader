@@ -12,14 +12,14 @@ from openai import OpenAI
 load_dotenv()
 
 
-class NewsAgent:
+class ClimateNewsAgent:
     """OpenAI Agent for searching climate events affecting Imperial Irrigation District operations"""
     
     def __init__(self):
         """Initialize the news agent"""
         # Initialize OpenAI client
         self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
-        self.model = os.getenv('NEWS_AGENT_MODEL', 'gpt-4o')
+        self.model = os.getenv('CLIMATE_NEWS_AGENT_MODEL', 'gpt-4o')
         
         # Colorado Basin states (prioritized for Imperial Irrigation District)
         self.target_states = [
@@ -515,7 +515,7 @@ def main():
     
     try:
         print("\n🔧 Testing Configuration...")
-        agent = NewsAgent()
+        agent = ClimateNewsAgent()
         config_ok = agent.test_configuration()
         
         if config_ok:
