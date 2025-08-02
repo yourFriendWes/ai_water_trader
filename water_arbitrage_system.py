@@ -16,6 +16,7 @@ import json
 import os
 from dotenv import load_dotenv
 from api_driver import APIDriver
+from climate_news_agent import ClimateNewsAgent
 
 load_dotenv()
 
@@ -107,14 +108,17 @@ class WaterArbitrageSystem:
         return weather_impacts.get(location, {'temp': 80, 'humidity': 50, 'drought_risk': 0.5})
 
     def analyze_with_ai(self):
-        """Use AI to analyze market conditions"""
-        print("🤖 Running AI market analysis...")
+        """Use AI to analyze market conditions with climate news context"""
+        print("🤖 Running AI market analysis with climate intelligence...")
         
-        # Get recent data from sheets
+        # 1. Get climate intelligence
+        climate_agent = ClimateNewsAgent()
+        climate_data = climate_agent.get_climate_intelligence_safe(format='structured')
+        
+        # 2. Get recent market data from sheets
         all_data = self.rawdata_sheet.get_all_records()
-        recent_data = all_data[-20:] if len(all_data) > 20 else all_data  # Last 20 records
+        recent_data = all_data[-20:] if len(all_data) > 20 else all_data
         
-        # Create analysis prompt
         df = pd.DataFrame(recent_data)
         summary_stats = df.groupby('Location').agg({
             'Price': ['mean', 'min', 'max', 'count'],
@@ -122,34 +126,34 @@ class WaterArbitrageSystem:
         }).round(2)
         
         prompt = f"""
-        Analyze this water market data for arbitrage opportunities:
-        
-        Recent Transactions:
+        Analyze this water market data for arbitrage opportunities, considering the latest climate intelligence.
+
+        **Climate Intelligence Summary:**
+        {climate_data.get('summary', 'No climate data available.')}
+
+        **Climate Events:**
+        {json.dumps(climate_data.get('events', []), indent=2)}
+
+        **Recent Market Transactions:**
         {df.tail(10).to_string()}
-        
-        Market Summary by Location:
+
+        **Market Summary by Location:**
         {summary_stats.to_string()}
-        
-        Please provide:
-        1. Top 3 arbitrage opportunities with specific buy/sell locations
-        2. Risk factors to consider
-        3. Optimal timing for trades
-        4. Expected profit margins
-        5. Market trend predictions
-        
-        Be specific about locations, prices, and profit calculations.
+
+        **Analysis Task:**
+        1.  **Top 3 Arbitrage Opportunities:** Identify specific buy/sell locations.
+        2.  **Climate-Adjusted Risk Factors:** How do the climate events impact risk?
+        3.  **Optimal Timing:** Recommend trade timing based on market and climate data.
+        4.  **Expected Profit Margins:** Calculate potential profits.
+        5.  **Market Trend Predictions:** Forecast trends with climate context.
+
+        Be specific about locations, prices, and profit calculations, integrating climate risks.
         """
         
         try:
-            # response = openai.ChatCompletion.create(
-            #     model="gpt-3.5-turbo",
-            #     messages=[{"role": "user", "content": prompt}],
-            #     max_tokens=600
-            # )
-
             response = openai.chat.completions.create(model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=600) 
+                max_tokens=2000)
             analysis = response.choices[0].message.content
             
             # Save analysis to sheets
